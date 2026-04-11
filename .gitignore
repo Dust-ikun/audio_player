@@ -1,0 +1,47 @@
+# 编译输出目录
+build/
+cmake-build-*/
+out/
+
+# CMake 生成文件
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+CMakeUserPresets.json
+*.cmake
+
+# 可执行文件
+*.exe
+*.out
+*.app
+
+# 对象文件
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dll
+*.dylib
+
+# IDE 文件（根据你的编辑器）
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.user
+*.userprefs
+
+# 媒体测试文件（可选，如果媒体文件很大）
+media/*.mp4
+media/*.mp3
+media/*.wav
+
+# 日志文件
+*.log
+
+# 操作系统生成文件
+Thumbs.db
+.DS_Store
