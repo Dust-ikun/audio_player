@@ -20,6 +20,7 @@ add_executable(audio_player
     src/main.cpp
     src/audio_decoder.cpp
     src/demuxer.cpp
+    src/video_decoder.cpp
 )
 
 target_link_libraries(audio_player
