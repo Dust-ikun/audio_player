@@ -1,6 +1,10 @@
 #ifndef SAFE_QUEUE_H
 #define SAFE_QUEUE_H
 
+extern "C" {
+#include <libavcodec/avcodec.h>
+}
+
 #include <queue>
 #include <mutex>
 #include <condition_variable>
@@ -66,6 +70,17 @@ public:
         }
     }
 
+    template <typename Deleter>
+    void clearAndfree(Deleter deleter){
+        std::unique_lock<std::mutex> lock(mtx_);
+        while (!queue_.empty()){
+            T item = std::move(queue_.front());
+            queue_.pop();
+            deleter(item);
+        }
+        cond_full_.notify_all();
+    }
+
     void stop(){
         std::unique_lock<std::mutex> lock(mtx_);
         stop_ = true;
@@ -76,6 +91,7 @@ public:
         std::unique_lock<std::mutex> lock(mtx_);
         return queue_.empty();
     }
+
 };
 
 struct Audiochunk
@@ -83,6 +99,16 @@ struct Audiochunk
     std::vector<uint8_t> data;
     double pts;
 };
+
+inline AVPacket* flush_pkt_sentinel() {
+    static AVPacket pkt = []{
+        AVPacket p{};
+        p.data = nullptr;
+        p.size = 0;
+        return p;
+    }();
+    return &pkt;
+}
 
 
 

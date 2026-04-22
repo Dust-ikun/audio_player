@@ -16,14 +16,14 @@ find_package(SDL2 REQUIRED)
 
 include_directories(${FFMPEG_INCLUDE_DIRS} ${SDL2_INCLUDE_DIRS})
 
-add_executable(audio_player
+add_executable(ikun_player
     src/main.cpp
     src/audio_decoder.cpp
     src/demuxer.cpp
     src/video_decoder.cpp
 )
 
-target_link_libraries(audio_player
+target_link_libraries(ikun_player
     ${FFMPEG_LIBRARIES}
     ${SDL2_LIBRARIES}
 )

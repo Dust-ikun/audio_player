@@ -98,15 +98,6 @@ void videoRenderLoop (SDL_Renderer* renderer, SDL_Texture* texture, AVRational v
                 continue; // 放弃当前旧帧，重新 Pop
             }
             
-            /* 情况 B: 视频严重超前 (diff > 1.0)
-               通常发生在恢复播放或 Seek 后音频设备还没准备好。
-               解决：强制让音频时钟“跳”到视频的位置，让音频迁就视频。
-            */
-            if (diff > 0) {
-                printf("Video too far ahead (%.2fs), resetting audio clock...\n", diff);
-                audio_clock.store(pts); 
-                diff = 0; // 现在对齐了
-            }
         }
 
         if (diff > SYNC_THRESHOLD){
@@ -252,15 +243,42 @@ int main(int argc, char* argv[]){
             if (event.type == SDL_QUIT) {
                 quit = true;
             } else if (event.type == SDL_KEYDOWN) {
-                if (event.key.keysym.sym == SDLK_SPACE){
-                    paused = !paused;
-                    SDL_PauseAudioDevice(dev, paused ? 1 : 0);
+                switch (event.key.keysym.sym){
+                    case SDLK_SPACE:
+                        paused = !paused;
+                        if (!demuxer.is_seekable()){
+                            if (!paused){
+                                video_pkt_queue.clearAndfree([](AVPacket* pkt){av_packet_free(&pkt);});
+                                audio_pkt_queue.clearAndfree([](AVPacket* pkt){av_packet_free(&pkt);});
+                                AVPacket* flush_pkt = flush_pkt_sentinel();
+                                video_pkt_queue.push(flush_pkt);
+                                audio_pkt_queue.push(flush_pkt);
+                                }
+                            }
+                        SDL_PauseAudioDevice(dev,paused ? 1 : 0);
+                        break;
+                    case SDLK_ESCAPE:
+                        quit = true;
+                        break;
+                    case SDLK_LEFT:
+                    case SDLK_RIGHT:{
+                        if (!demuxer.is_seekable()){
+                            std::cout << "Seek not supported for Live Streams." << std::endl;
+                            break;
+                        }
+                        double duration_sec = demuxer.getDuration() / 1000000.0;
+                        double current_sec = audio_clock.load();
+                        double delta = (event.key.keysym.sym == SDLK_LEFT) ? -10.0 : 10.0;
+                        double new_sec = std::max(0.0, std::min(duration_sec,current_sec + delta));
+                        double percent = new_sec / duration_sec;
+                        demuxer.requestSeek(percent);
+                        break;
+                        }
                 }
-                if (event.key.keysym.sym == SDLK_ESCAPE) quit = true;
-            }
             // 窗口调整大小时，SDL 会自动处理 Texture 的缩放渲染（因为渲染线程在跑）
-        }
-    }    
+            }
+        }  
+    }  
 
     SDL_PauseAudioDevice(dev, 1);
     SDL_CloseAudioDevice(dev);

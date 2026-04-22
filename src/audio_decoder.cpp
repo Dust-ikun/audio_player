@@ -133,6 +133,13 @@ void AudioDecoder::decodeloop(){
             break;
         }
 
+        if (pkt == flush_pkt_sentinel()){
+            frame_queue_.clear();
+            avcodec_flush_buffers(codec_ctx_);
+            std::cout << "Audio decoder flush" << std::endl;
+            continue;
+        }
+
         int ret = avcodec_send_packet(codec_ctx_,pkt);
         if (ret < 0){
             av_packet_free(&pkt);

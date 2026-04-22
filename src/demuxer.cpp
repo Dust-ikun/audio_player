@@ -14,7 +14,9 @@ Demuxer::~Demuxer(){
 }
 
 bool Demuxer::open(const std::string& filename) {
-    int ret = avformat_open_input(&fmt_ctx_, filename.c_str(), nullptr, nullptr);
+    AVDictionary* opts = nullptr;
+    av_dict_set(&opts, "timeout","5000000", 0);
+    int ret = avformat_open_input(&fmt_ctx_, filename.c_str(), nullptr, &opts);
     if (ret < 0) {
         char err[256];
         av_strerror(ret, err, sizeof(err));
@@ -99,6 +101,11 @@ void Demuxer::demuxloop(){
     int error_count = 0;
     const int MAX_ERRORS = 10;
     while (running_) {
+        if (seek_req_.exchange(false)){
+            int64_t target = seek_target_;
+            doseek(target);
+            continue;
+        }
         AVPacket* pkt = av_packet_alloc();
         int ret = av_read_frame(fmt_ctx_,pkt);
         if(ret < 0){
@@ -129,3 +136,32 @@ void Demuxer::demuxloop(){
     audio_pkt_queue_.push(nullptr);
     std::cout << "Demux thread exiting " << std::endl;
 }
+
+void Demuxer::requestSeek(double percent){
+    if (!fmt_ctx_ || percent < 0.0 || percent > 1.0) return;
+    int64_t target = static_cast<int64_t>(percent * fmt_ctx_->duration);
+    seek_target_.store(target);
+    seek_req_.store(true);
+}
+
+void Demuxer::doseek(int64_t seek_target){
+
+    audio_pkt_queue_.clearAndfree([](AVPacket* pkt){ av_packet_free(&pkt); });
+    video_pkt_queue_.clearAndfree([](AVPacket* pkt){ av_packet_free(&pkt); });
+
+    int ret = av_seek_frame(fmt_ctx_,-1, seek_target, AVSEEK_FLAG_BACKWARD);
+    if (ret < 0){
+        char errbuf[128];
+        av_strerror(ret, errbuf, sizeof(errbuf));
+        std::cerr << "av_seek_frame failed: " << errbuf << std::endl;
+    }
+
+    AVPacket* flush_pkt = flush_pkt_sentinel();
+    video_pkt_queue_.push(flush_pkt);
+    audio_pkt_queue_.push(flush_pkt);
+  
+
+    std::cout << "Seek executed to " << seek_target / 1000000.0 << "s" << std::endl;
+}
+
+bool Demuxer::is_seekable() const {return (fmt_ctx_->duration > 0) && (fmt_ctx_->pb->seekable & AVIO_SEEKABLE_NORMAL); }

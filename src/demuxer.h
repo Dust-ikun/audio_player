@@ -14,6 +14,10 @@ extern "C"{
 class Demuxer{
 private:
     void demuxloop();
+    void doseek(int64_t seek_target);
+
+    std::atomic<bool> seek_req_{false};
+    std::atomic<int64_t> seek_target_{0};
 
     AVFormatContext* fmt_ctx_ = nullptr;
     AVCodecContext* video_ctx_ = nullptr;
@@ -39,12 +43,20 @@ public:
 
     AVCodecContext* getVideoCodecContex() const{ return video_ctx_; }
     AVCodecContext* getAudioCodecContex() const{ return audio_ctx_; }
+
     int getVideoStreamIndex() const{ return video_stream_index_; }
     int getAudioStreamIndex() const{ return audio_stream_index_; }
+
     AVRational getAudioTimeBase() const { return audio_time_base_; }
     AVRational getVideoTimeBase() const { return video_time_base_; }
+
+    bool is_seekable() const;
     bool hasVideo() const { return video_stream_index_ >= 0; }
     bool hasAudio() const { return audio_stream_index_ >= 0; }
-};
 
+    void requestSeek(double percent);
+    int64_t getDuration()const { return fmt_ctx_ ? fmt_ctx_->duration : 0;}
+
+
+};
 #endif
