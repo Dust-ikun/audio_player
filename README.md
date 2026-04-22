@@ -1,118 +1,65 @@
-# 第一阶段：音频播放器 - 基于 FFmpeg 和 SDL2 的命令行音频播放器
+# 项目名称: ikun-Dust 媒体播放器
 
-本项目是“从零实现支持网络流的高性能媒体播放器”系列的第一阶段成果。该阶段实现了完整的音频播放功能：解封装、解码、重采样、多线程数据流水线、音频播放和优雅退出。
+**执行摘要:** ikun-Dust 媒体播放器是一个使用 C++ 及 FFmpeg/SDL2 库开发的简单本地音视频播放器。项目目标是演示如何使用 FFmpeg 解码多媒体流并通过 SDL2 输出音频和视频。该播放器支持视频播放、音视频同步、暂停/继续（空格键）、快进/快退（左右键）等功能，适合在 Linux/Windows 等桌面系统上运行。以下文档详细介绍了项目的安装、使用、部署以及开发协作指导，方便快速上手并进行扩展维护。
 
-## ✨ 功能特性
+## 项目简介
 
-- 支持常见的音频格式（MP3、AAC、FLAC、WAV 等，基于 FFmpeg 解封装）
-- 从本地文件读取音频流
-- 独立解封装线程与音频解码线程，通过线程安全队列传递数据包
-- 自动重采样为 SDL 兼容的格式（S16、立体声、原始采样率）
-- SDL2 音频回调播放，支持动态填充音频数据
-- 优雅退出：响应 `std::cin.get()` 等待用户按回车，线程安全退出并释放资源
+ikun-Dust 媒体播放器旨在实现一个基础的音视频播放功能，以示例项目的形式展示如何使用 FFmpeg 的解复用（Demux）和解码（Decode）API，以及 SDL2 的渲染和音频播放接口。主要功能包括：
 
-## 🛠️ 技术栈
+- **多媒体解复用**：使用 FFmpeg 打开媒体文件，分离视频流和音频流（Demuxer）。
+- **音视频解码**：分别为音频流和视频流创建解码器，解码出 PCM 音频和 YUV 视频帧（AudioDecoder、VideoDecoder）。
+- **音视频播放**：通过 SDL2 的音频回调播放 PCM 数据，通过 SDL2 渲染视频帧；实现音视频同步。
+- **控制操作**：支持暂停/继续（空格键）、前进/后退（左右键）、退出（ESC 键或窗口关闭）等基本控制功能。
+- **线程与缓冲**：使用安全队列（SafeQueue）在多个线程间传递 AVPacket 与 AVFrame 数据，实现多线程异步处理，提高播放平滑度。
 
-- **C++17** 标准
-- **FFmpeg** (libavformat, libavcodec, libavutil, libswresample) – 解封装、解码、重采样
-- **SDL2** – 音频设备管理与播放
-- **CMake** – 跨平台构建
+项目背景：该播放器作为学习 FFmpeg/SDL2 的示例项目，可以帮助开发者理解多媒体解码播放流程。播放器基于现代 C++ (C++11+) 实现，采用跨平台的依赖，适用于 Linux（可移植到 Windows），需要安装对应的开发库。
 
-## 📁 项目结构
-audio_player/
-├── CMakeLists.txt
-├── README.md
-├── src/
-│ ├── main.cpp # 主程序，初始化 SDL，启动线程
-│ ├── queue.h # 线程安全队列模板
-│ ├── demuxer.h / .cpp # 解封装模块
-│ └── audio_decoder.h / .cpp # 音频解码 + 重采样模块
-└── media/ # 测试媒体文件（可选）
+## 安装与依赖
 
-text
+本项目依赖以下环境和库：
 
-## 🔧 构建与运行
+- **操作系统**：推荐使用 Linux (Ubuntu/Debian)；也可在 Windows 上使用 MinGW 或 MSYS2 编译。
+- **语言/运行时**：C++ (至少 C++11)，编译器支持如 g++、clang 或 Visual C++。
+- **FFmpeg**：需要安装 FFmpeg 开发库，包括 `libavformat-dev`, `libavcodec-dev`, `libavutil-dev`, `libswresample-dev`, `libswscale-dev` 等。FFmpeg 是音视频处理的核心库，其官方文档提供了详细的 API 说明【3†L32-L40】。
+- **SDL2**：Simple DirectMedia Layer (SDL2) 库用于音频和视频输出。安装 `libsdl2-dev`（或 Windows 下的 SDL2 SDK）。
+- **包管理器**：在 Debian/Ubuntu 上可使用 `apt` 安装依赖；在 Windows 可使用 vcpkg 或手动安装预编译库。
+- **可选组件**：无特别的第三方服务或 API；可选安装 `ffmpeg` 工具（命令行工具）以便于测试和文件格式转换。
 
-### 依赖安装
-
-#### Windows (MSYS2)
+示例（以 Ubuntu 为例）安装依赖命令：  
 ```bash
-pacman -S mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-make
-pacman -S mingw-w64-ucrt-x86_64-ffmpeg mingw-w64-ucrt-x86_64-SDL2
-Linux (Ubuntu/Debian)
-bash
-sudo apt install cmake build-essential libavformat-dev libavcodec-dev libavutil-dev libswresample-dev libsdl2-dev
-macOS (Homebrew)
-bash
-brew install cmake ffmpeg sdl2
-构建步骤
-bash
-git clone <your-repo-url>
-cd audio_player
-mkdir build && cd build
-cmake .. -G "MinGW Makefiles"   # Windows 使用 MinGW；Linux/macOS 可省略 -G
-make                            # 或 mingw32-make (Windows)
+sudo apt update
+sudo apt install -y libavformat-dev libavcodec-dev libavutil-dev libswresample-dev libswscale-dev libsdl2-dev build-essential cmake
+```  
+在 Windows 上可以使用 vcpkg：  
+```bash
+vcpkg install ffmpeg sdl2
 ```
-运行示例
-bash
-./audio_player ../media/test.mp3
-播放期间按 Enter 键退出程序。
 
-🧠 核心实现解析
-1. 多线程流水线
-主线程：初始化 SDL，创建解封装器和解码器，启动工作线程，等待用户输入。
 
-解封装线程：调用 av_read_frame 读取 AVPacket，将音频包推入 SafeQueue<AVPacket*>。
+## 使用说明
 
-解码线程：从包队列取包，解码为 AVFrame，通过 swr_convert 重采样为 S16 交错格式，将 PCM 数据块（std::vector<uint8_t>）推入音频帧队列。
+### 主要功能示例
 
-SDL 音频回调：在独立音频线程中从音频帧队列取数据，拷贝到硬件缓冲区；队列空时填充静音。
+- **播放视频**：运行程序并传入视频文件路径，如 `./media_player movie.mp4`，程序自动解码并播放音视频。
+- **暂停/继续**：播放过程中按 `空格键` 切换暂停状态；暂停时视频停止，音频静音，继续时恢复播放。
+- **快进/快退**：按 `→（右箭头）` 快进约 10 秒，按 `←（左箭头）` 快退约 10 秒。此操作通过 Demuxer 请求 Seek 完成，前提是视频流支持随机访问。
+- **退出**：按 `ESC` 键或关闭窗口将退出程序，并在退出前安全地停止解码线程和清理资源。
 
-2. 线程安全队列
-使用 std::mutex + std::condition_variable 实现阻塞队列，支持 pop()（无限阻塞）和 tryPopFor()（超时等待）。队列负责传递 AVPacket* 和 PCM 数据块，明确所有权转移，避免内存泄漏。
+### 接口说明
 
-3. 音频重采样
-由于解码器输出格式不固定（可能是平面/交错、浮点/整型、多声道），而 SDL 要求 S16 交错立体声，因此使用 libswresample 统一转换。配置输入/输出参数后，调用 swr_convert 完成转换。
+- **命令行接口（CLI）**：程序通过命令行接收一个参数，即待播放的多媒体文件路径。  
+  ```
+  Usage: ./media_player <media_file>
+  ```
+- **程序内部接口**：项目主要类包括 `Demuxer`, `AudioDecoder`, `VideoDecoder`, `SafeQueue` 等。Demuxer 负责读取并分发 AVPacket，解码器负责将 Packet 转为帧并推入队列，主线程通过 SDL 渲染音视频帧。
+- **示例输入输出**：输入为视频文件（如 MP4、MKV 等），输出为 SDL 窗口实时显示的视频和音频输出。以下是示例的伪输出日志：
+  ```
+  Video stream found: 1280x720
+  Audio stream found: sample_rate=44100, channels=2, format=fltp
+  SDL audio open: freq=44100, format=208, channels=2
+  demuxloop start
+  decoderdemo start
+  videodecoder start
+  ```
+  程序运行时会打印类似信息，可帮助调试问题。
 
-4. 内存管理
-AVPacket* 在解封装线程 alloc，推入队列后所有权转移；解码线程使用完毕后 av_packet_free。
-
-重采样输出缓冲区使用 av_samples_alloc 分配，转换为 std::vector<uint8_t> 后立即 av_free。
-
-AVFrame 复用，每次使用后 av_frame_unref。
-
-📄 主要 API 参考
-模块	函数	作用
-FFmpeg	avformat_open_input	打开媒体文件
-FFmpeg	av_find_best_stream	查找音频流
-FFmpeg	avcodec_parameters_to_context	将流参数复制到解码器上下文
-FFmpeg	avcodec_send_packet / receive_frame	解码一包 / 取一帧
-FFmpeg	swr_alloc / swr_init / swr_convert	重采样配置与执行
-SDL2	SDL_Init / SDL_OpenAudioDevice	初始化音频设备
-SDL2	SDL_PauseAudioDevice	开始/暂停播放
-C++	std::thread / std::mutex / std::condition_variable	多线程同步
-🧪 测试情况
-本地测试文件：MP3（44100 Hz, 立体声）、AAC（48000 Hz, 立体声）、WAV（PCM S16）均能正常播放，无卡顿、无爆音。
-
-内存泄漏检测：Valgrind / AddressSanitizer 无泄漏（注意：FFmpeg 全局初始化有少量“仍可达”内存，可忽略）。
-
-线程退出：按回车后所有线程正常退出，无死锁。
-
-📌 待优化（未来阶段）
-视频解码与显示
-
-音视频同步（以音频时钟为基准）
-
-网络流支持（HTTP/RTMP）
-
-进度条跳转（seek）
-
-音量控制
-
-🙏 致谢
-FFmpeg 与 SDL2 社区
-
-开源项目 FFplay 参考实现
-
-📜 许可证
-本项目采用 MIT 许可证，详见 LICENSE 文件。
